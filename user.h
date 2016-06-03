@@ -39,3 +39,4 @@ void free(void*);
 int atoi(const char*);
 
 void shutdown(void);
+void alarm(int interval,void (*fn)(void));

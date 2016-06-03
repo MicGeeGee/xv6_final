@@ -96,3 +96,27 @@ int sys_shutdown(void)
 
   return 0;
 }
+
+int
+sys_alarm(void)
+{
+	int arg0;
+	int arg1;
+
+	int interval;
+	void (*fn)(void);
+
+	 if(argint(0, &arg0) < 0)
+		return -1;
+	 if(argint(1, &arg1) < 0)
+		return -1;
+
+
+	 interval=arg0;
+	 fn=(void(*)(void))arg1;
+	 alarm(interval,fn);
+
+	 return 0;
+	
+}
+

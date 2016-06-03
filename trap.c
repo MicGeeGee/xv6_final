@@ -14,6 +14,10 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
+int is_al=0;
+
+
+
 void
 tvinit(void)
 {
@@ -51,7 +55,20 @@ trap(struct trapframe *tf)
     if(cpu->id == 0){
       acquire(&tickslock);
       ticks++;
-      wakeup(&ticks);
+	  
+	  //cprintf("proc=%d,tf->cs&3=%d,al_intvl=%d\n",proc,(tf->cs&3),al_intvl);
+	  if(proc && (tf->cs&3) == 3 && al_intvl>1)
+	  {
+		    
+		  al_ticks++;
+		  
+		  if((al_ticks%al_intvl == 0) && al_ticks)
+		  {
+			  is_al=1;
+			  
+		  }
+	  }
+	  wakeup(&ticks);
       release(&tickslock);
     }
     lapiceoi();
@@ -80,6 +97,7 @@ trap(struct trapframe *tf)
    
   //PAGEBREAK: 13
   default:
+
     if(proc == 0 || (tf->cs&3) == 0){
       // In kernel, it must be our mistake.
       cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
@@ -87,11 +105,23 @@ trap(struct trapframe *tf)
       panic("trap");
     }
     // In user space, assume process misbehaved.
-    cprintf("pid %d %s: trap %d err %d on cpu %d "
+
+	if(proc && (tf->cs&3) == 3 && al_intvl>1 && al_ticks && is_al)
+	{
+
+		*(proc->tf)=old_tf;
+		is_al=0;
+		//proc->tf->eip=old_eip;
+	}
+	else
+	{	
+		cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
             proc->pid, proc->name, tf->trapno, tf->err, cpu->id, tf->eip, 
             rcr2());
-    proc->killed = 1;
+
+		proc->killed = 1;
+	}
   }
 
   // Force process exit if it has been killed and is in user space.
@@ -103,8 +133,24 @@ trap(struct trapframe *tf)
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
   if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
+  {
+	yield();
+	if(proc && (tf->cs&3) == 3 && al_intvl>1)
+	{
+		//if((al_ticks%al_intvl == 0) && al_ticks)
+		if(is_al)
+		{
+			//cprintf("aaa\n");
+			old_tf=*(proc->tf);
+			//old_eip=proc->tf->eip;
+			proc->tf->eip=(uint)al_fn;
+			
+		}
+		  
+	}
+	
 
+  }
   // Check if the process has been killed since we yielded
   if(proc && proc->killed && (tf->cs&3) == DPL_USER)
     exit();

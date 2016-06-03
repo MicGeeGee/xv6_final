@@ -119,6 +119,8 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 
+void            alarm(int interval,void (*fn)(void));
+
 // swtch.S
 void            swtch(struct context**, struct context*);
 
