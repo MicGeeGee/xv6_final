@@ -14,7 +14,6 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
-int is_al=0;
 
 
 
@@ -56,18 +55,20 @@ trap(struct trapframe *tf)
       acquire(&tickslock);
       ticks++;
 	  
-	  //cprintf("proc=%d,tf->cs&3=%d,al_intvl=%d\n",proc,(tf->cs&3),al_intvl);
-	  if(proc && (tf->cs&3) == 3 && al_intvl>1)
+	  
+	  if(proc && (tf->cs&3) == 3)
 	  {
-		    
-		  al_ticks++;
-		  
-		  if((al_ticks%al_intvl == 0) && al_ticks)
+		  if(proc->al_intvl>1 && proc->al_ringing==0)
 		  {
-			  is_al=1;
-			  
+			  proc->al_ticks++;
+		  
+			  if((proc->al_ticks%proc->al_intvl == 0) && proc->al_ticks)
+			  {
+				  proc->al_ringing=1;
+			  }
 		  }
 	  }
+	  
 	  wakeup(&ticks);
       release(&tickslock);
     }
@@ -105,15 +106,7 @@ trap(struct trapframe *tf)
       panic("trap");
     }
     // In user space, assume process misbehaved.
-
-	if(proc && (tf->cs&3) == 3 && al_intvl>1 && al_ticks && is_al)
-	{
-
-		*(proc->tf)=old_tf;
-		is_al=0;
-		//proc->tf->eip=old_eip;
-	}
-	else
+	if((tf->eip)!=0xfffffff)
 	{	
 		cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
@@ -121,6 +114,15 @@ trap(struct trapframe *tf)
             rcr2());
 
 		proc->killed = 1;
+	}
+	else
+	{
+		if(proc)
+			if( (tf->cs&3) == 3 && proc->al_intvl>1 && proc->al_ringing)
+			{
+				proc->tf->eip=proc->al_eip;
+				proc->al_ringing=0;
+			}
 	}
   }
 
@@ -134,22 +136,22 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
   if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
   {
-	yield();
-	if(proc && (tf->cs&3) == 3 && al_intvl>1)
+    if((tf->cs&3) == 3 && proc->al_intvl>1)
 	{
-		//if((al_ticks%al_intvl == 0) && al_ticks)
-		if(is_al)
+		if(proc->al_ringing)
 		{
-			//cprintf("aaa\n");
-			old_tf=*(proc->tf);
-			//old_eip=proc->tf->eip;
-			proc->tf->eip=(uint)al_fn;
-			
+			proc->al_eip=proc->tf->eip;
+
+			proc->tf->esp-=4;
+			*((uint*)proc->tf->esp)=(uint)(0xfffffff);
+		
+			proc->tf->eip=(uint)proc->al_fn;
+
 		}
 		  
 	}
-	
 
+	yield();
   }
   // Check if the process has been killed since we yielded
   if(proc && proc->killed && (tf->cs&3) == DPL_USER)

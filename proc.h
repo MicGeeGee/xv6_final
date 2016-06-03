@@ -33,7 +33,7 @@ extern struct proc *proc asm("%gs:4");     // cpus[cpunum()].proc
 //PAGEBREAK: 17
 // Saved registers for kernel context switches.
 // Don't need to save all the segment registers (%cs, etc),
-// because they are constant across kernel contexts.
+// ecause they are constant across kernel contexts.
 // Don't need to save %eax, %ecx, %edx, because the
 // x86 convention is that the caller has saved them.
 // Contexts are stored at the bottom of the stack they
@@ -67,15 +67,15 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
+  int al_intvl;
+  int al_ticks;
+  int al_ringing;
+  uint al_eip;
+  void (*al_fn)(void);
   
 };
 
 
-extern int al_intvl;
-extern int al_ticks;
-extern void (*al_fn)(void);
-extern struct trapframe old_tf;
-extern uint old_eip;
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

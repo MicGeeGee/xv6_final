@@ -15,11 +15,6 @@ struct {
 static struct proc *initproc;
 
 
-int al_intvl=1;
-int al_ticks=0;
-void (*al_fn)(void)=0;
-struct trapframe old_tf;
-uint old_eip=0;
 
 int nextpid = 1;
 extern void forkret(void);
@@ -474,10 +469,8 @@ procdump(void)
 
 void alarm(int interval,void (*fn)(void))
 {
-	
-	al_fn=fn;
-	al_intvl=interval;
-	al_ticks=0;
-	
-//	cprintf("interval=%d,fn=%d\n",interval,fn);
+	proc->al_intvl=interval;
+	proc->al_fn=fn;
+	proc->al_ticks=0;
+	proc->al_ringing=0;
 }
